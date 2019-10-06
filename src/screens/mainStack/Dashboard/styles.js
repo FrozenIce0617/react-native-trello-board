@@ -6,7 +6,6 @@ const styles = StyleSheet.create({
   },
   board: {
     flex: 1,
-    padding: 15,
     backgroundColor: '#63A2B8',
   },
   column: {
