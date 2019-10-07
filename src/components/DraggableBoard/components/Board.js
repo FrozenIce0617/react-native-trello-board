@@ -225,6 +225,7 @@ class Board extends React.Component {
           return;
         }
         const { x, y } = item.layout();
+        console.log('Layout X: ', x, ', Layout Y: ', y);
         this.props.rowRepository.hide(columnId, item);
         this.setState({
           movingMode: true,
@@ -234,7 +235,6 @@ class Board extends React.Component {
           startingY: y,
           x: x,
           y: y,
-          offset: 0,
         });
         columnCallback();
         this.rotate();
@@ -274,9 +274,8 @@ class Board extends React.Component {
   onScroll(event) {
     this.cancelMovingSubscription();
     const scrollX = event.nativeEvent.contentOffset.x;
-
     this.scrollX = scrollX;
-    // this.x = scrollX;
+    this.x = scrollX;
     this.setState({
       scrollX,
     });
@@ -284,7 +283,11 @@ class Board extends React.Component {
 
   onScrollEnd = (event, param) => {
     this.props.rowRepository.updateColumnsLayoutAfterVisibilityChanged();
+    console.log('Event: ', event.nativeEvent);
     this.verticalOffset = event.nativeEvent.contentOffset.x;
+    this.androidOffset = this.verticalOffset;
+
+    console.log('ScrollEnd: ', this.verticalOffset, this.androidOffset);
   };
 
   movingStyle(zIndex) {
