@@ -5,7 +5,9 @@ import {
   ScrollView,
   Platform,
   Dimensions,
+  NativeModules,
 } from 'react-native';
+
 import _ from 'underscore';
 import ReactTimeout from 'react-timeout';
 
@@ -22,6 +24,7 @@ class Board extends React.Component {
     super(props);
 
     this.verticalOffset = 0;
+    this.androidOffset = 0;
     this.scrollX = 0;
     this.timer = null;
     this.x = 0;
@@ -66,34 +69,35 @@ class Board extends React.Component {
     } else {
       if (this.scrollX + (this.WIDTH / 20) * flag < 0) return;
       if (this.scrollX + (this.WIDTH / 20) * flag - 150 > this.WIDTH) return;
-
       let newScrollPos = this.scrollX + (this.WIDTH / 20) * flag;
-      this.refs._scrollView.scrollTo({ x: newScrollPos, duration: 100 });
+      this.androidOffset += (flag * this.WIDTH) / 20;
+      console.log('Android Offset: ', this.androidOffset);
+      // NativeModules.ScrollViewManager.getContentOffset(scrollCtl, offset => {
+      //   console.log('ScrollView: ', offset);
+      // });
+      console.log('Ticking - ', offset);
+      this.refs._scrollView.scrollTo({ x: newScrollPos, duration: 10 });
       this.scrollX = newScrollPos;
-      this.setState({
-        offset: offset + (flag * this.WIDTH) / 20,
-      });
     }
   };
 
   onPanResponderMove(event, gesture, callback) {
-    let leftTopCornerX = this.state.startingX + gesture.dx;
-    console.log('Offset: ', this.state.offset);
+    const leftTopCornerX = this.state.startingX + gesture.dx;
     const leftTopCornerY = this.state.startingY + gesture.dy;
     if (this.state.movingMode) {
       const draggedItem = this.state.draggedItem;
       let flag = 0;
       this.x = event.nativeEvent.pageX;
       this.y = event.nativeEvent.pageY;
-      console.log('x: ', this.x, ', y: ', this.y);
 
       if (this.x < this.WIDTH / 10 || this.x > (this.WIDTH * 9) / 10) {
         flag = this.x < this.WIDTH / 10 ? -1 : 1;
         // if (Platform.OS !== 'ios') leftTopCornerX += this.state.offset;
       }
+
       const columnAtPosition = this.props.rowRepository.move(
         draggedItem,
-        this.x,
+        this.x + (Platform.OS === 'ios' ? 0 : this.androidOffset),
         this.y,
       );
       if (columnAtPosition) {
@@ -106,10 +110,9 @@ class Board extends React.Component {
           this.scroll(columnAtPosition, draggedItem, offset);
         }
       }
-      console.log('LeftTopCornerX: ', leftTopCornerX);
 
       this.setState({
-        x: leftTopCornerX + Math.abs(flag) * this.state.offset,
+        x: leftTopCornerX,
         y: leftTopCornerY,
         flag,
       });
@@ -164,6 +167,7 @@ class Board extends React.Component {
     const { rowRepository, onDragEnd } = this.props;
     rowRepository.show(draggedItem.columnId(), draggedItem);
     rowRepository.notify(draggedItem.columnId(), 'reload');
+    this.props.clearInterval(this.timer);
 
     const destColumnId = draggedItem.columnId();
     onDragEnd && onDragEnd(srcColumnId, destColumnId, draggedItem);
@@ -178,7 +182,6 @@ class Board extends React.Component {
     } else if (this.isScrolling()) {
       this.unsubscribeFromMovingMode();
     }
-    clearInterval(this.timer);
   }
 
   rotateTo(value) {
@@ -273,16 +276,16 @@ class Board extends React.Component {
     const scrollX = event.nativeEvent.contentOffset.x;
 
     this.scrollX = scrollX;
-    this.x = scrollX;
+    // this.x = scrollX;
     this.setState({
       scrollX,
     });
   }
 
-  onScrollEnd(event) {
+  onScrollEnd = (event, param) => {
     this.props.rowRepository.updateColumnsLayoutAfterVisibilityChanged();
     this.verticalOffset = event.nativeEvent.contentOffset.x;
-  }
+  };
 
   movingStyle(zIndex) {
     const interpolatedRotateAnimation = this.state.rotate.interpolate({
@@ -294,11 +297,10 @@ class Board extends React.Component {
       position: 'absolute',
       zIndex: zIndex,
       top: Platform.OS === 'ios' ? this.state.y - this.TRESHOLD : this.state.y,
-      // left: this.verticalOffset + this.state.x,
       left:
         Platform.OS === 'ios'
           ? this.verticalOffset + this.state.x
-          : this.verticalOffset + this.state.x + this.state.offset,
+          : this.androidOffset + this.state.x,
     };
   }
 
@@ -356,14 +358,15 @@ class Board extends React.Component {
         contentContainerStyle={this.props.contentContainerStyle}
         scrollEnabled={!this.state.movingMode}
         onScroll={this.onScroll.bind(this)}
-        scrollEventThrottle={16}
-        onScrollEndDrag={this.onScrollEnd.bind(this)}
-        onMomentumScrollEnd={this.onScrollEnd.bind(this)}
+        scrollEventThrottle={1}
+        onScrollEndDrag={this.onScrollEnd}
+        onMomentumScrollEnd={this.onScrollEnd}
         horizontal
         {...this.panResponder.panHandlers}
       >
+        {!this.state.movingMode && this.movingTask()}
         {columnWrappers}
-        {this.movingTask()}
+        {this.state.movingMode && this.movingTask()}
       </ScrollView>
     );
   }
